@@ -1,0 +1,31 @@
+id: markdown-scanner-001
+title: Build a Markdown link scanner
+status: not_started
+difficulty: intermediate
+mode: amber
+summary: Write a CLI that scans Markdown files and reports missing local links.
+skills:
+  cli: 10
+  files: 15
+  data: 20
+  testing: 20
+requirements:
+  - A Python file exists at src/markdown_scanner/main.py
+  - The script accepts a folder path
+  - The script reports missing Markdown links
+  - Tests cover at least one missing-link case
+verification:
+  changed_files:
+    - src/markdown_scanner/main.py
+  commands:
+    - pytest
+  expected_paths:
+    - tests
+  forbidden:
+    - Do not ask AI to generate the full scanner implementation
+ai_review:
+  enabled: false
+  provider: none
+  prompt: Check whether the implementation satisfies the quest requirements. Give pass/fail and explain why.
+notes: Use AI for hints and review only if you enable ai_review.
+

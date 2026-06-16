@@ -1,0 +1,30 @@
+id: repo-init-001
+title: Create a README generator
+status: not_started
+difficulty: beginner
+mode: green
+summary: Create a script that makes a project folder and writes a README.md file.
+skills:
+  cli: 10
+  files: 20
+  logic: 10
+requirements:
+  - A Python file exists at src/repo_init_lite/main.py
+  - Running the script creates a new project folder
+  - The generated folder contains README.md
+  - The code refuses to overwrite an existing folder unless --force is provided
+verification:
+  changed_files:
+    - src/repo_init_lite/main.py
+  commands:
+    - python src/repo_init_lite/main.py demo_project
+  expected_paths:
+    - demo_project/README.md
+  forbidden:
+    - Do not use AI to write the whole implementation
+ai_review:
+  enabled: false
+  provider: none
+  prompt: Check whether the implementation satisfies the quest requirements. Give pass/fail and explain why.
+notes: ""
+
