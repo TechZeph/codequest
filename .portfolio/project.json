@@ -1,0 +1,34 @@
+{
+  "title": "CodeQuest",
+  "status": "Prototype",
+  "type": "Local-first educational CLI",
+  "summary": "Python CLI that turns a learner's own repository into coding quests with XP, levels, achievements, boss fights, guided setup, local repo analysis, and Ollama-backed quest generation with deterministic verification before rewards are awarded.",
+  "role": "Python CLI implementation",
+  "tags": [
+    "Python",
+    "CLI",
+    "edtech",
+    "local-first",
+    "gamification",
+    "Ollama",
+    "LLM integration",
+    "pytest",
+    "YAML",
+    "VS Code tasks"
+  ],
+  "skills": [
+    "Python 3.11",
+    "argparse command design",
+    "YAML file storage",
+    "repository analysis",
+    "local LLM integration",
+    "prompt construction",
+    "JSON parsing and validation",
+    "deterministic verification",
+    "XP and achievement systems",
+    "pytest test coverage"
+  ],
+  "complexityNotes": "Implements a multi-command `cq` CLI with local `.codequest/` project state, questionnaire-driven setup, validated generated quest data, command/path-based verification, scoring logic, achievement unlocks, and optional VS Code task integration while avoiding hosted service requirements for the main workflow.",
+  "currentState": "MVP-style local package at version 0.1.0. README documents installation, `cq play`, manual quest creation, local Ollama setup, boss listing, and development testing. Tests cover storage defaults, project profiles, scoring, verification, repository analysis, quest generation parsing, and CLI wiring. Recent commits include initial setup and LLM quest generation.",
+  "include": true
+}
