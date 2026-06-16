@@ -1,6 +1,6 @@
 # CodeQuest
 
-CodeQuest is a local CLI that turns manual programming practice into quests, XP,
+CodeQuest is a local CLI that turns real programming projects into quests, XP,
 levels, achievements, and boss fights.
 
 It exists for learners who often use AI-written code and want to rebuild the
@@ -19,7 +19,39 @@ python -m pip install -e ".[dev]"
 
 This installs the `cq` command in your virtual environment.
 
-## Initialize CodeQuest
+## Quick Start
+
+Run this inside the project you want to learn through:
+
+```bash
+cq play
+```
+
+`cq play` initializes CodeQuest if needed, asks what you are building, analyzes
+the current repository, asks a local LLM for a scaling quest chain, saves the
+quests, and offers to start the first quest.
+
+For local quest generation, CodeQuest expects Ollama to be running:
+
+```bash
+ollama serve
+ollama pull llama3.1
+cq doctor
+```
+
+You can change the local model with:
+
+```bash
+cq config llm --provider ollama --model llama3.1
+```
+
+CodeQuest still works without an LLM by creating quests manually:
+
+```bash
+cq quest new
+```
+
+## Initialize CodeQuest Manually
 
 Run this in the project where you want to track practice:
 
@@ -32,6 +64,7 @@ This creates:
 ```text
 .codequest/
   config.yaml
+  project.yaml
   profile.yaml
   log.yaml
   quests/
@@ -53,6 +86,19 @@ The interactive prompt asks for a title, summary, difficulty, mode, XP rewards,
 requirements, verification commands, expected paths, and optional AI review.
 
 Quest files are stored as YAML in `.codequest/quests/`.
+
+## Generate Quests
+
+After setup, generate more project-specific quests with:
+
+```bash
+cq generate
+```
+
+The generator combines your questionnaire answers, repository structure, README,
+detected languages, tests, and completed quest history. Generated quests are
+validated before they are saved. Each generated quest must include deterministic
+verification, such as expected paths or local commands.
 
 ## Start And Finish A Quest
 
@@ -91,7 +137,10 @@ ai_review:
   provider: none
 ```
 
-For the MVP, AI review is a clean stub for future providers:
+For the MVP, AI review is a clean stub for future providers. Quest generation
+uses the local Ollama provider configured under `llm` in `.codequest/config.yaml`.
+
+Recognized AI review providers:
 
 - `none`
 - `openai`
@@ -132,8 +181,7 @@ merges in missing tasks.
 ## Example Workflow
 
 ```bash
-cq init
-cq quest new
+cq play
 cq quest list
 cq quest start repo-init-001
 # user manually writes code
@@ -163,7 +211,5 @@ Run tests:
 pytest
 ```
 
-The MVP intentionally avoids a database, web app, full IDE extension, or required
-AI provider. The goal is a small, readable CLI that can later grow into editor
-integrations.
-
+The MVP intentionally avoids a database, web app, or full IDE extension. The
+goal is a small, readable CLI that can later grow into editor integrations.

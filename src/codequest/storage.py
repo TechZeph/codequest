@@ -37,6 +37,12 @@ def write_yaml(path: Path, data: Any, overwrite: bool = True) -> None:
 
 def default_config() -> dict[str, Any]:
     return {
+        "llm": {
+            "provider": "ollama",
+            "ollama_model": "llama3.1",
+            "ollama_url": "http://localhost:11434",
+            "quest_count": 5,
+        },
         "ai_review": {
             "provider": "none",
             "openai_model": "gpt-4.1-mini",
@@ -61,6 +67,19 @@ def default_log() -> list[dict[str, Any]]:
     ]
 
 
+def default_project_profile() -> dict[str, Any]:
+    return {
+        "project_name": "",
+        "project_goal": "",
+        "learner_level": "beginner",
+        "preferred_language": "",
+        "time_budget": "30 minutes",
+        "learning_goal": "",
+        "ai_comfort": "hints and review",
+        "updated_at": now_iso(),
+    }
+
+
 def init_storage(root: Path | None = None, force: bool = False, username: str = "learner") -> list[Path]:
     base = cq_dir(root)
     quests = base / "quests"
@@ -69,6 +88,7 @@ def init_storage(root: Path | None = None, force: bool = False, username: str = 
 
     files = {
         base / "config.yaml": default_config(),
+        base / "project.yaml": default_project_profile(),
         base / "profile.yaml": default_profile(username),
         base / "log.yaml": default_log(),
     }
@@ -107,8 +127,28 @@ def load_config(root: Path | None = None) -> dict[str, Any]:
     config = read_yaml(base / "config.yaml", default_config())
     defaults = default_config()
     defaults.update(config)
-    defaults["ai_review"] = {**default_config()["ai_review"], **defaults.get("ai_review", {})}
+    defaults["llm"] = {**default_config()["llm"], **(defaults.get("llm") or {})}
+    defaults["ai_review"] = {**default_config()["ai_review"], **(defaults.get("ai_review") or {})}
     return defaults
+
+
+def save_config(config: dict[str, Any], root: Path | None = None) -> None:
+    write_yaml(require_initialized(root) / "config.yaml", config)
+
+
+def load_project_profile(root: Path | None = None) -> dict[str, Any]:
+    base = require_initialized(root)
+    project = read_yaml(base / "project.yaml", default_project_profile())
+    defaults = default_project_profile()
+    defaults.update(project)
+    return defaults
+
+
+def save_project_profile(project: dict[str, Any], root: Path | None = None) -> None:
+    current = default_project_profile()
+    current.update(project)
+    current["updated_at"] = now_iso()
+    write_yaml(require_initialized(root) / "project.yaml", current)
 
 
 def load_log(root: Path | None = None) -> list[dict[str, Any]]:
@@ -157,4 +197,3 @@ def load_all_quests(root: Path | None = None) -> list[dict[str, Any]]:
         if quest:
             quests.append(quest)
     return quests
-

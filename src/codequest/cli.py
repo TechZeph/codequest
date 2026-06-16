@@ -7,17 +7,25 @@ from pathlib import Path
 from typing import Any
 
 from .ai_review import review_quest
+from .llm import OllamaClient, check_ollama, LLMError
 from .models import QUEST_MODES, QUEST_STATUSES, STAT_KEYS, default_quest
+from .questionnaire import ask_project_profile
+from .quest_generation import QuestGenerationError, generate_quests
+from .repo_analyzer import analyze_repo
 from .scoring import apply_quest_xp, calculate_total_xp, unlock_achievements, xp_until_next_level
 from .storage import (
     append_log,
+    cq_dir,
     init_storage,
     load_all_quests,
     load_config,
     load_log,
     load_profile,
+    load_project_profile,
     load_quest,
+    save_config,
     save_profile,
+    save_project_profile,
     save_quest,
 )
 from .verifier import verify_quest
@@ -115,6 +123,83 @@ def command_quest_new(_: argparse.Namespace) -> int:
     path = save_quest(quest)
     append_log("quest_created", f"Created quest {quest_id}.", quest_id=quest_id)
     print(f"Created quest {quest_id} at {path}")
+    return 0
+
+
+def _llm_from_config(config: dict[str, Any]) -> OllamaClient:
+    llm_config = config.get("llm", {}) or {}
+    provider = llm_config.get("provider", "ollama")
+    if provider != "ollama":
+        raise ValueError(f"Quest generation provider '{provider}' is not implemented. Use `cq config llm --provider ollama`.")
+    return OllamaClient(
+        model=str(llm_config.get("ollama_model") or "llama3.1"),
+        base_url=str(llm_config.get("ollama_url") or "http://localhost:11434"),
+    )
+
+
+def _generate_and_save_quests(count: int | None = None) -> list[dict[str, Any]]:
+    config = load_config()
+    llm_config = config.get("llm", {}) or {}
+    quest_count = count or int(llm_config.get("quest_count", 5))
+    project_profile = load_project_profile()
+    repo_summary = analyze_repo(Path.cwd())
+    existing_quests = load_all_quests()
+    llm = _llm_from_config(config)
+    quests = generate_quests(llm, project_profile, repo_summary, existing_quests, quest_count=quest_count)
+    for quest in quests:
+        save_quest(quest)
+        append_log("quest_generated", f"Generated quest {quest['id']}.", quest_id=quest["id"])
+    return quests
+
+
+def command_generate(args: argparse.Namespace) -> int:
+    try:
+        quests = _generate_and_save_quests(args.count)
+    except (LLMError, QuestGenerationError, ValueError) as exc:
+        print(f"Could not generate quests: {exc}", file=sys.stderr)
+        print("Run `cq doctor` to check local LLM setup, or use `cq quest new` to create a quest manually.", file=sys.stderr)
+        return 1
+
+    print(f"Generated {len(quests)} quests.")
+    for quest in quests:
+        print(f"  {quest['id']} - {quest['title']} ({quest['difficulty']}, {quest['mode']})")
+    return 0
+
+
+def command_play(args: argparse.Namespace) -> int:
+    if not cq_dir().exists():
+        changed = init_storage(username=args.username)
+        print("CodeQuest initialized.")
+        for path in changed:
+            print(f"  wrote {path}")
+
+    project = load_project_profile()
+    project = ask_project_profile(project)
+    save_project_profile(project)
+
+    try:
+        quests = _generate_and_save_quests(args.count)
+    except (LLMError, QuestGenerationError, ValueError) as exc:
+        print(f"Could not generate quests: {exc}", file=sys.stderr)
+        print("You can run `cq doctor` to inspect setup, or `cq quest new` to create a quest manually.", file=sys.stderr)
+        return 1
+
+    print(f"\nGenerated {len(quests)} quests.")
+    for quest in quests:
+        print(f"  {quest['id']} - {quest['title']}")
+
+    first = quests[0]
+    answer = input(f"\nStart first quest now? [{first['id']}] [Y/n]: ").strip().lower()
+    if answer in {"", "y", "yes"}:
+        first["status"] = "active"
+        save_quest(first)
+        profile = load_profile()
+        profile["current_quest"] = first["id"]
+        save_profile(profile)
+        append_log("quest_started", f"Started quest {first['id']}.", quest_id=first["id"])
+        print(f"Started quest {first['id']}.")
+    else:
+        print("Run `cq quest start <quest_id>` when you are ready.")
     return 0
 
 
@@ -245,9 +330,56 @@ def command_vscode_install(_: argparse.Namespace) -> int:
     return 0
 
 
+def command_config_llm(args: argparse.Namespace) -> int:
+    config = load_config()
+    config.setdefault("llm", {})
+    if args.provider:
+        config["llm"]["provider"] = args.provider
+    if args.model:
+        config["llm"]["ollama_model"] = args.model
+    if args.url:
+        config["llm"]["ollama_url"] = args.url
+    if args.count is not None:
+        config["llm"]["quest_count"] = args.count
+    save_config(config)
+    llm_config = config["llm"]
+    print("LLM configuration updated.")
+    print(f"  provider: {llm_config.get('provider')}")
+    print(f"  ollama_model: {llm_config.get('ollama_model')}")
+    print(f"  ollama_url: {llm_config.get('ollama_url')}")
+    print(f"  quest_count: {llm_config.get('quest_count')}")
+    return 0
+
+
+def command_doctor(_: argparse.Namespace) -> int:
+    print(f"Python: {sys.version.split()[0]}")
+    initialized = cq_dir().exists()
+    print(f"CodeQuest project: {'initialized' if initialized else 'not initialized'}")
+
+    config = load_config() if initialized else {"llm": {"provider": "ollama", "ollama_url": "http://localhost:11434"}}
+    llm_config = config.get("llm", {}) or {}
+    provider = llm_config.get("provider", "ollama")
+    print(f"Quest generation provider: {provider}")
+    if provider == "ollama":
+        ok, message = check_ollama(str(llm_config.get("ollama_url") or "http://localhost:11434"))
+        print(f"Ollama: {'ok' if ok else 'not ready'} - {message}")
+    else:
+        print("Ollama: skipped")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cq", description="CodeQuest manual coding practice CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
+
+    play = subparsers.add_parser("play", help="Run guided setup and generate project quests.")
+    play.add_argument("--username", default="learner")
+    play.add_argument("--count", type=int, default=None, help="Number of quests to generate.")
+    play.set_defaults(func=command_play)
+
+    generate = subparsers.add_parser("generate", help="Generate quests from the saved project profile.")
+    generate.add_argument("--count", type=int, default=None, help="Number of quests to generate.")
+    generate.set_defaults(func=command_generate)
 
     init = subparsers.add_parser("init")
     init.add_argument("--force", action="store_true", help="Overwrite default CodeQuest files.")
@@ -281,6 +413,17 @@ def build_parser() -> argparse.ArgumentParser:
     vscode = subparsers.add_parser("vscode")
     vscode_sub = vscode.add_subparsers(dest="vscode_command", required=True)
     vscode_sub.add_parser("install").set_defaults(func=command_vscode_install)
+
+    config = subparsers.add_parser("config")
+    config_sub = config.add_subparsers(dest="config_command", required=True)
+    llm = config_sub.add_parser("llm")
+    llm.add_argument("--provider", choices=["ollama", "none"])
+    llm.add_argument("--model")
+    llm.add_argument("--url")
+    llm.add_argument("--count", type=int)
+    llm.set_defaults(func=command_config_llm)
+
+    subparsers.add_parser("doctor").set_defaults(func=command_doctor)
     return parser
 
 
@@ -296,4 +439,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
